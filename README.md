@@ -1,8 +1,8 @@
-# AI Academic Advisor — Penn State Course Registration System
+# AI Academic Advisor — CockroachDB State Course Registration System
 
 <div align="center">
 
-![Penn State AI Advisor](https://img.shields.io/badge/Penn%20State-AI%20Advisor-1E407C?style=for-the-badge)
+![CockroachDB State AI Advisor](https://img.shields.io/badge/CockroachDB%20State-AI%20Advisor-1E407C?style=for-the-badge)
 ![CockroachDB](https://img.shields.io/badge/CockroachDB-Cloud-6933FF?style=for-the-badge&logo=cockroachdb)
 ![AWS S3](https://img.shields.io/badge/AWS-S3-FF9900?style=for-the-badge&logo=amazons3)
 ![Gemini](https://img.shields.io/badge/Google-Gemini%203.5-4285F4?style=for-the-badge&logo=google)
@@ -550,4 +550,4 @@ This project is licensed under the MIT License — see the [LICENSE](./LICENSE) 
 - **Sentence Transformers** (`all-MiniLM-L6-v2`) for local embedding generation
 - **Ollama** for local LLM inference (`mistral:instruct`, `llama3.1:8b`)
 - **Mistral AI** for cloud fallback API
-- **Penn State University** course catalog data
+- **CockroachDB State University** course catalog data

@@ -7,7 +7,7 @@ from tools import mcp_check_eligibility, vector_semantic_search, ccloud_health_c
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-SINGLE_SHOT_PROMPT = """You are an AI Academic Advisor at Penn State University.
+SINGLE_SHOT_PROMPT = """You are an AI Academic Advisor at CockroachDB State University.
 
 Given the student context and pre-fetched course search results below, respond with EXACTLY this JSON structure:
 
