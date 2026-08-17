@@ -29,8 +29,9 @@ Given the student context and pre-fetched course search results below, respond w
 
 RULES:
 - CRITICAL: You MUST ONLY select recommendations directly from the 'Pre-fetched semantically matching courses' list provided. Use the exact course_code and title from that list. DO NOT make up courses.
-- Include exactly 3 recommendations, ranked by fit % (highest first)
-- "fit" must be an integer 0-100
+- If the pre-fetched courses are NOT highly relevant to the student's specific goal (e.g. they asked for computer science courses but their major only allows architecture courses), DO NOT recommend them. In this case, return an empty recommendations list `[]` and explain in `agent_answer` that their allowed departments do not offer courses matching their specific goal.
+- Otherwise, include up to 3 highly relevant recommendations, ranked by fit % (highest first).
+- "fit" must be an integer 0-100 reflecting TRUE semantic relevance. Do not assign high fit scores to irrelevant courses.
 - "avg_grade" must be a realistic letter grade (A, A-, B+, B, B-, C+, C)
 - "credits" must be an integer
 - Each recommendation must have 2-4 short tags
