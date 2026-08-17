@@ -15,23 +15,23 @@ Given the student context and pre-fetched course search results below, respond w
   "agent_answer": "A 2-3 sentence summary explaining your recommendation strategy and how it connects to the student's goal",
   "recommendations": [
     {
-      "course_code": "CMPSC 442",
-      "title": "Artificial Intelligence",
+      "course_code": "<COURSE_CODE>",
+      "title": "<COURSE_TITLE>",
       "credits": 3,
       "fit": 92,
-      "avg_grade": "B+",
+      "avg_grade": "<GRADE>",
       "explanation": "Why this specific course fits the student's goal",
       "benefits": "How the student will benefit — skills gained, career impact, etc.",
-      "tags": ["career match 0.91", "prereqs met", "high demand"]
+      "tags": ["<tag_1>", "<tag_2>"]
     }
   ]
 }
 
 RULES:
-- CRITICAL: You MUST ONLY select recommendations directly from the 'Pre-fetched semantically matching courses' list provided. Use the exact course_code and title from that list. DO NOT make up courses.
-- Evaluate the pre-fetched courses and recommend the 1 to 3 best matches that align with the student's goal. Use your understanding of the disciplines to identify courses that are foundationally or tangentially related if a direct match isn't available.
-- If and ONLY if the pre-fetched courses are completely out-of-domain and unrelated to the student's request, DO NOT recommend them. In this rare case, return an empty list `[]` and explain why.
-- "fit" must be an integer 0-100 reflecting TRUE semantic relevance.
+- You MUST ONLY recommend courses from the 'Pre-fetched semantically matching courses' list provided.
+- Review the pre-fetched courses and recommend up to 3 of the most relevant courses that best align with the student's goal.
+- If you recommend a course that is NOT in the student's 'Allowed department prefixes', you MUST clearly warn them in the 'agent_answer' that it falls outside their major.
+- "fit" must be an integer 0-100 reflecting how well the course matches their goal.
 - "avg_grade" must be a realistic letter grade (A, A-, B+, B, B-, C+, C)
 - "credits" must be an integer
 - Each recommendation must have 2-4 short tags
@@ -44,7 +44,7 @@ def _fetch_tool_results_parallel(goal, student_id, allowed_depts):
 
     def do_vector():
         try:
-            return vector_semantic_search(goal_text=goal, limit=8, allowed_depts=allowed_depts)
+            return vector_semantic_search(goal_text=goal, limit=8, allowed_depts=None)
         except Exception as e:
             return {"error": str(e)}
 

@@ -112,7 +112,7 @@ def vector_semantic_search(goal_text: str, limit: int = 5, allowed_depts: list =
         SELECT id, title, description, department_prefix, min_credits,
                1 - (embedding <=> %s::vector) AS similarity
         FROM courses
-        WHERE department_prefix = ANY(%s)
+        WHERE department_prefix = ANY(%s) AND embedding IS NOT NULL
         ORDER BY embedding <=> %s::vector
         LIMIT %s
         """
@@ -122,6 +122,7 @@ def vector_semantic_search(goal_text: str, limit: int = 5, allowed_depts: list =
         SELECT id, title, description, department_prefix, min_credits,
                1 - (embedding <=> %s::vector) AS similarity
         FROM courses
+        WHERE embedding IS NOT NULL
         ORDER BY embedding <=> %s::vector
         LIMIT %s
         """
