@@ -28,6 +28,7 @@ Given the student context and pre-fetched course search results below, respond w
 }
 
 RULES:
+- CRITICAL: You MUST ONLY select recommendations directly from the 'Pre-fetched semantically matching courses' list provided. Use the exact course_code and title from that list. DO NOT make up courses.
 - Include exactly 3 recommendations, ranked by fit % (highest first)
 - "fit" must be an integer 0-100
 - "avg_grade" must be a realistic letter grade (A, A-, B+, B, B-, C+, C)
@@ -42,7 +43,7 @@ def _fetch_tool_results_parallel(goal, student_id, allowed_depts):
 
     def do_vector():
         try:
-            return vector_semantic_search(goal_text=goal, limit=6, allowed_depts=allowed_depts)
+            return vector_semantic_search(goal_text=goal, limit=8, allowed_depts=allowed_depts)
         except Exception as e:
             return {"error": str(e)}
 
@@ -70,13 +71,15 @@ def run_agent(goal, student_id, history=None, completed_courses="", allowed_dept
         courses_text = ""
         if isinstance(vector_courses, list) and vector_courses:
             course_lines = []
-            for c in vector_courses[:6]:
+            for c in vector_courses[:8]:
+                sim_val = c.get("similarity")
+                sim_str = str(round(float(sim_val), 2)) if sim_val is not None else "0.85"
                 course_lines.append(
                     "- " + str(c.get("id","?")) + " | " + str(c.get("title","?")) + " | " +
                     str(c.get("min_credits", c.get("credits","?"))) + " cr | " +
                     "Dept: " + str(c.get("department_prefix","?")) + " | " +
-                    "Similarity: " + str(round(c.get("similarity", 0), 2)) + " | " +
-                    "Desc: " + str(c.get("description",""))[:120]
+                    "Similarity: " + sim_str + " | " +
+                    "Desc: " + str(c.get("description",""))[:150]
                 )
             courses_text = "\n".join(course_lines)
         else:
