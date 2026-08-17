@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment variables — NEVER commit real credentials
+.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+server.log
+*.log
+
+# Database / data files
+*.csv
+
+# Node
+node_modules/
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Large binary zips
+*.zip
+
+# Pytest cache
+.pytest_cache/
+.coverage
+
+# Jupyter
+.ipynb_checkpoints/

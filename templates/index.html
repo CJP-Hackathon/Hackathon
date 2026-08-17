@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI Course Advisor Login">
+    <title>Login - AI Course Advisor</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260816_scroll">
+    <style>
+        .student-selector-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--muted-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 20px 0 12px 0;
+            text-align: left;
+        }
+        .student-cards-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .student-card-option {
+            border: 1px solid var(--rule-color);
+            border-radius: 6px;
+            padding: 12px 14px;
+            background-color: var(--bg-color);
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .student-card-option:hover {
+            border-color: var(--seal-color);
+            background-color: #fdfbf7;
+        }
+        .card-student-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--fg-color);
+        }
+        .card-student-major {
+            font-size: 0.8rem;
+            color: var(--seal-color);
+            font-weight: 500;
+        }
+        .card-student-desc {
+            font-size: 0.75rem;
+            color: var(--muted-color);
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card" style="max-width:460px;">
+            <div class="login-header-mono">
+                <span>◆ Penn State University</span>
+            </div>
+            <h1 class="login-title">Course Advisor</h1>
+            <p class="login-subtitle">Select a student profile below to explore major-specific courses and AI advisor recommendations.</p>
+            
+            <div class="student-selector-title">Select Student Discipline:</div>
+            <div class="student-cards-grid">
+                <div class="student-card-option" data-id="student_123">
+                    <div class="card-student-name">Alice Smith <span style="font-size:0.75rem;color:var(--muted-color);font-weight:normal">(student_123)</span></div>
+                    <div class="card-student-major">Major: Computer Science</div>
+                    <div class="card-student-desc">Eligible: Technical & STEM (CS, Eng, Math, Stats)</div>
+                </div>
+                <div class="student-card-option" data-id="student_456">
+                    <div class="card-student-name">Bob Johnson <span style="font-size:0.75rem;color:var(--muted-color);font-weight:normal">(student_456)</span></div>
+                    <div class="card-student-major">Major: Architecture</div>
+                    <div class="card-student-desc">Eligible: Architecture & Design (Arch, Landscape, Fine Arts)</div>
+                </div>
+                <div class="student-card-option" data-id="student_789">
+                    <div class="card-student-name">Carol Williams <span style="font-size:0.75rem;color:var(--muted-color);font-weight:normal">(student_789)</span></div>
+                    <div class="card-student-major">Major: Law & Legal Studies</div>
+                    <div class="card-student-desc">Eligible: Law, Criminology & Pre-Law (Business Law, Political Sci)</div>
+                </div>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <input type="text" id="studentId" class="form-input" placeholder="Or enter Student ID (student_123)" required>
+                <button type="submit" class="btn btn-primary" id="loginBtn">Login as Selected Student</button>
+                <div id="errorMessage" class="error-msg hidden"></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var loginForm = document.getElementById('loginForm');
+            var errorMessage = document.getElementById('errorMessage');
+            var loginBtn = document.getElementById('loginBtn');
+            var studentIdInput = document.getElementById('studentId');
+
+            document.querySelectorAll('.student-card-option').forEach(function(card) {
+                card.addEventListener('click', function() {
+                    var id = this.getAttribute('data-id');
+                    studentIdInput.value = id;
+                    doLogin(id);
+                });
+            });
+
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                var studentId = studentIdInput.value.trim();
+                if (!studentId) {
+                    showError("Please select or enter a Student ID");
+                    return;
+                }
+                doLogin(studentId);
+            });
+
+            function doLogin(studentId) {
+                loginBtn.disabled = true;
+                loginBtn.textContent = "Loading...";
+                errorMessage.classList.add('hidden');
+
+                fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id: studentId })
+                })
+                .then(function(response) {
+                    if (!response.ok) throw new Error('Login failed');
+                    return response.json();
+                })
+                .then(function(data) {
+                    sessionStorage.setItem('student_id', studentId);
+                    if(data && data.student) {
+                        if(data.student.name) sessionStorage.setItem('student_name', data.student.name);
+                        if(data.student.major) sessionStorage.setItem('student_major', data.student.major);
+                        if(data.student.sample_prompts) sessionStorage.setItem('sample_prompts', JSON.stringify(data.student.sample_prompts));
+                    }
+                    if(data && data.completed_courses) {
+                        sessionStorage.setItem('completed_courses', JSON.stringify(data.completed_courses));
+                    }
+                    if(data && data.upcoming_term) {
+                        sessionStorage.setItem('upcoming_term', data.upcoming_term);
+                    }
+                    window.location.href = '/advisor?student_id=' + encodeURIComponent(studentId);
+                })
+                .catch(function(error) {
+                    showError('Invalid Student ID or server error.');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = "Login as Selected Student";
+                });
+            }
+
+            function showError(msg) {
+                errorMessage.textContent = msg;
+                errorMessage.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

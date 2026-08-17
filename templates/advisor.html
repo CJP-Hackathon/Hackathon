@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI Course Advisor">
+    <title>AI Course Advisor</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260816_scroll">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-brand">
+            <span>◆</span> Penn State University <span style="font-size:1rem;color:var(--muted-color);margin-left:12px">Course Catalogue 2025-26</span>
+        </div>
+        <div class="header-search">
+            <span style="color:var(--muted-color)">⌕</span>
+            <input type="text" id="searchInput" placeholder="Search courses...">
+        </div>
+        <div class="header-user">
+            <span id="userNameDisplay">Student</span>
+            <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+        </div>
+    </header>
+
+    <div class="mobile-nav">
+        <select id="mobileDeptSelect" class="mobile-dept-select">
+            <option value="">All Courses</option>
+        </select>
+    </div>
+    
+    <button id="mobileChatBtn" class="floating-chat-btn">✦</button>
+
+    <div class="advisor-layout">
+        <!-- Sidebar -->
+        <aside class="dept-sidebar" id="sidebar">
+            <div class="sidebar-heading">DEPARTMENTS</div>
+            <button class="dept-btn active" data-dept="">
+                <span class="dept-name">All Courses</span>
+                <span class="dept-count" id="totalCourseCount">0</span>
+            </button>
+            <div id="deptList"></div>
+        </aside>
+
+        <!-- Center Panel -->
+        <main class="course-panel">
+            <div id="studentDashboard" class="student-dashboard" style="display:none;">
+                <div class="dashboard-header">
+                    <h3 id="dashboardGreeting">Welcome back!</h3>
+                    <div class="upcoming-term-badge" id="upcomingTermBadge">Upcoming Term</div>
+                </div>
+                <div class="dashboard-content">
+                    <div class="dashboard-section-title">Enrolled / Completed Courses</div>
+                    <div class="enrolled-courses-list" id="enrolledCoursesList"></div>
+                </div>
+            </div>
+
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title" id="currentDeptTitle">All Courses</h2>
+                    <div style="font-size:0.8rem;color:var(--muted-color);margin-top:4px" id="currentDeptCount">0 courses</div>
+                </div>
+                <div>
+                    <select id="courseJumpSelect" class="btn btn-secondary" style="background:#fff">
+                        <option value="">Jump to course...</option>
+                    </select>
+                    <button id="clearFilterBtn" class="btn btn-secondary hidden">Clear Filter</button>
+                </div>
+            </div>
+            <div class="course-list" id="courseList">
+                <div style="padding:24px;text-align:center;color:var(--muted-color)">Loading courses...</div>
+            </div>
+        </main>
+
+        <!-- Right Panel -->
+        <aside class="chat-panel" id="chatPanel">
+            <button id="closeChatBtn" class="mobile-overlay">✕</button>
+            <div class="chat-header">
+                <div class="chat-title"><span>✦</span> Academic Advisor</div>
+                <div class="chat-subtitle">Ask about courses, careers, or GPA goals.</div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="suggestion-chips" id="suggestionChips">
+                    <button class="suggestion-chip">Which courses suit someone interested in AI/ML?</button>
+                    <button class="suggestion-chip">What courses help for a software engineering career?</button>
+                    <button class="suggestion-chip">What are high-GPA courses to boost my grades?</button>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Type a message...">
+                <button id="sendBtn" class="btn btn-primary">↵</button>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        function escapeHtml(unsafe) {
+            return (unsafe || '').toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function generateUUID() {
+            var d = new Date().getTime();
+            if(typeof performance !== 'undefined' && typeof performance.now === 'function'){
+                d += performance.now(); 
+            }
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = (d + Math.random()*16)%16 | 0;
+                d = Math.floor(d/16);
+                return (c === 'x' ? r : (r&0x3|0x8)).toString(16);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[advisor] DOMContentLoaded fired');
+
+            var studentId = sessionStorage.getItem('student_id');
+            if (!studentId) {
+                window.location.href = '/';
+                return;
+            }
+
+            // Init student dashboard
+            var studentName = sessionStorage.getItem('student_name') || 'Student';
+            var upcomingTerm = sessionStorage.getItem('upcoming_term') || 'Spring 2026';
+            var completedCoursesJson = sessionStorage.getItem('completed_courses');
+            
+            document.getElementById('dashboardGreeting').textContent = 'Welcome back, ' + studentName + '!';
+            document.getElementById('upcomingTermBadge').textContent = 'Registering for: ' + upcomingTerm;
+            document.getElementById('currentDeptTitle').textContent = 'Available Courses for ' + upcomingTerm;
+            
+            var pastCompletedMap = new Map(); // course_id -> semester/grade
+            var springEnrolledIdsSet = new Set();
+            var allowedDeptsSet = new Set();
+
+            function updateEnrolledState(completedList) {
+                pastCompletedMap.clear();
+                springEnrolledIdsSet.clear();
+                var listEl = document.getElementById('enrolledCoursesList');
+                if (listEl) listEl.innerHTML = '';
+                
+                if (completedList && Array.isArray(completedList) && completedList.length > 0) {
+                    completedList.forEach(function(c) {
+                        var cid = (c.id || c.course_id || '').trim();
+                        var sem = c.semester || 'Fall 2025';
+                        var grade = c.grade || '';
+
+                        if (sem.indexOf('Fall') !== -1 || (grade && grade !== 'Enrolled')) {
+                            pastCompletedMap.set(cid, { semester: sem, grade: grade });
+                        } else {
+                            springEnrolledIdsSet.add(cid);
+                        }
+                        
+                        if (listEl) {
+                            var pill = document.createElement('span');
+                            pill.className = 'course-pill';
+                            var isPast = pastCompletedMap.has(cid);
+                            var termText = sem ? (' (' + sem + ')') : '';
+                            var gradeText = grade ? (' [' + grade + ']') : '';
+                            pill.textContent = (cid || 'Course') + gradeText + termText + (isPast ? ' 🔒' : '');
+                            
+                            if (!isPast) {
+                                var dropBtn = document.createElement('button');
+                                dropBtn.style.cssText = 'background:none;border:none;color:#8b2a2a;margin-left:6px;cursor:pointer;font-weight:bold;font-size:0.75rem;';
+                                dropBtn.textContent = '✕ Drop';
+                                dropBtn.addEventListener('click', function(e) {
+                                    e.stopPropagation();
+                                    dropCourse(cid, dropBtn);
+                                });
+                                pill.appendChild(dropBtn);
+                            }
+                            
+                            listEl.appendChild(pill);
+                        }
+                    });
+                    var dash = document.getElementById('studentDashboard');
+                    if (dash) dash.style.display = 'block';
+                } else if (listEl) {
+                    listEl.innerHTML = '<span style="color:var(--muted-color);font-size:0.85rem">No courses enrolled yet.</span>';
+                    var dash = document.getElementById('studentDashboard');
+                    if (dash) dash.style.display = 'block';
+                }
+                sessionStorage.setItem('completed_courses', JSON.stringify(completedList || []));
+            }
+
+            if (completedCoursesJson) {
+                try {
+                    var completed = JSON.parse(completedCoursesJson);
+                    updateEnrolledState(completed);
+                } catch(e) { console.error('Error parsing completed courses', e); }
+            }
+
+            fetch('/api/student/' + encodeURIComponent(studentId))
+            .then(function(res){ return res.json(); })
+            .then(function(data){
+                if (data && data.student) {
+                    if (data.student.allowed_departments && Array.isArray(data.student.allowed_departments)) {
+                        allowedDeptsSet.clear();
+                        data.student.allowed_departments.forEach(function(d) { allowedDeptsSet.add(d); });
+                    }
+                }
+                if (data && data.completed_courses) {
+                    updateEnrolledState(data.completed_courses);
+                }
+                if (allCoursesData.length > 0) renderCourseList(allCoursesData);
+            }).catch(function(e){ console.error(e); });
+
+            function enrollCourse(courseId, btnEl) {
+                if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Enrolling...'; }
+                fetch('/api/enroll', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        course_id: courseId,
+                        semester: upcomingTerm
+                    })
+                })
+                .then(function(res) { 
+                    if (!res.ok) {
+                        return res.json().then(function(errData) { throw new Error(errData.error || 'Enrollment error'); });
+                    }
+                    return res.json(); 
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        updateEnrolledState(data.completed_courses);
+                        renderCourseList(allCoursesData);
+                    } else {
+                        alert(data.error || 'Failed to enroll');
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Enroll error:', err);
+                    alert(err.message || 'Error enrolling in course');
+                })
+                .finally(function() {
+                    if (btnEl) btnEl.disabled = false;
+                });
+            }
+
+            function dropCourse(courseId, btnEl) {
+                if (!confirm('Are you sure you want to drop ' + courseId + '?')) {
+                    if (btnEl) btnEl.disabled = false;
+                    return;
+                }
+                if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Dropping...'; }
+                fetch('/api/drop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        course_id: courseId
+                    })
+                })
+                .then(function(res) { 
+                    if (!res.ok) {
+                        return res.json().then(function(errData) { throw new Error(errData.error || 'Drop error'); });
+                    }
+                    return res.json(); 
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        updateEnrolledState(data.completed_courses);
+                        renderCourseList(allCoursesData);
+                    } else {
+                        alert(data.error || 'Failed to drop course');
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Drop error:', err);
+                    alert(err.message || 'Error dropping course');
+                })
+                .finally(function() {
+                    if (btnEl) btnEl.disabled = false;
+                });
+            }
+
+            // Display Student Name & Major
+            var studentMajor = sessionStorage.getItem('student_major') || '';
+            var userDisplayStr = studentName + (studentMajor ? ' • Major: ' + studentMajor : '');
+            document.getElementById('userNameDisplay').textContent = userDisplayStr;
+            
+            // Set discipline-specific suggestion chips if available
+            var samplePromptsJson = sessionStorage.getItem('sample_prompts');
+            if (samplePromptsJson) {
+                try {
+                    var prompts = JSON.parse(samplePromptsJson);
+                    if (prompts && prompts.length > 0) {
+                        var chipBtns = document.querySelectorAll('.suggestion-chip');
+                        prompts.forEach(function(pText, idx) {
+                            if (chipBtns[idx]) chipBtns[idx].textContent = pText;
+                        });
+                    }
+                } catch(e) {}
+            }
+
+            var sessionId = generateUUID();
+
+            document.getElementById('logoutBtn').addEventListener('click', function() {
+                sessionStorage.clear();
+                window.location.href = '/';
+            });
+
+            var activeDept = '';
+            var allCoursesData = [];
+
+            function loadDepartments() {
+                console.log('[advisor] Loading full departments catalog...');
+                fetch('/api/departments')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    console.log('[advisor] Departments loaded:', (data || []).length);
+                    var deptList = document.getElementById('deptList');
+                    var mobileSelect = document.getElementById('mobileDeptSelect');
+                    deptList.innerHTML = '';
+                    
+                    var depts = data || [];
+                    
+                    depts.forEach(function(d) {
+                        var btn = document.createElement('button');
+                        btn.className = 'dept-btn';
+                        btn.setAttribute('data-dept', d.prefix);
+                        btn.innerHTML = '<span class="dept-prefix">' + escapeHtml(d.prefix) + '</span>' +
+                                        '<span class="dept-name">' + escapeHtml(d.name) + '</span>';
+                        
+                        btn.addEventListener('click', function() {
+                            setActiveDept(d.prefix, d.name);
+                        });
+                        deptList.appendChild(btn);
+
+                        var opt = document.createElement('option');
+                        opt.value = d.prefix;
+                        opt.textContent = d.prefix + ' - ' + d.name;
+                        mobileSelect.appendChild(opt);
+                    });
+                })
+                .catch(function(e) { console.error('Error loading depts', e); });
+            }
+
+            function setActiveDept(prefix, name) {
+                activeDept = prefix || '';
+                
+                var btns = document.querySelectorAll('.dept-btn');
+                btns.forEach(function(b) {
+                    b.classList.remove('active');
+                    if (b.getAttribute('data-dept') === activeDept) {
+                        b.classList.add('active');
+                    }
+                });
+
+                document.getElementById('mobileDeptSelect').value = activeDept;
+                
+                var defaultTitle = 'Available Courses for ' + upcomingTerm;
+                document.getElementById('currentDeptTitle').textContent = activeDept ? escapeHtml(name) : defaultTitle;
+                
+                var clearBtn = document.getElementById('clearFilterBtn');
+                if (activeDept) {
+                    clearBtn.classList.remove('hidden');
+                } else {
+                    clearBtn.classList.add('hidden');
+                }
+
+                loadCourses(activeDept);
+            }
+
+            document.querySelector('.dept-btn[data-dept=""]').addEventListener('click', function() {
+                setActiveDept('', 'All Courses');
+            });
+
+            document.getElementById('mobileDeptSelect').addEventListener('change', function(e) {
+                var prefix = e.target.value;
+                var name = e.target.options[e.target.selectedIndex].text.split(' - ')[1] || 'All Courses';
+                setActiveDept(prefix, name);
+            });
+
+            document.getElementById('clearFilterBtn').addEventListener('click', function() {
+                setActiveDept('', 'All Courses');
+            });
+
+            function loadCourses(dept) {
+                var url = '/api/courses';
+                if (dept) url += '?dept=' + encodeURIComponent(dept);
+                
+                console.log('[advisor] Loading full catalog courses from:', url);
+                document.getElementById('courseList').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted-color)">Loading full course catalog...</div>';
+                
+                fetch(url)
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    allCoursesData = data || [];
+                    console.log('[advisor] Full catalog courses loaded:', allCoursesData.length);
+                    document.getElementById('currentDeptCount').textContent = allCoursesData.length + ' courses';
+                    
+                    if (!dept) {
+                        document.getElementById('totalCourseCount').textContent = allCoursesData.length;
+                    }
+                    
+                    renderCourseList(allCoursesData);
+                    populateCourseJump(allCoursesData);
+                })
+                .catch(function(e) {
+                    console.error('Error loading courses', e);
+                    document.getElementById('courseList').innerHTML = '<div style="padding:24px;text-align:center;color:#aa0000">Error loading courses: ' + escapeHtml(e.message) + '</div>';
+                });
+            }
+
+            function renderCourseList(courses) {
+                var container = document.getElementById('courseList');
+                container.innerHTML = '';
+                
+                if (!courses || courses.length === 0) {
+                    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted-color)">No courses found.</div>';
+                    return;
+                }
+
+                courses.forEach(function(c) {
+                    var row = document.createElement('div');
+                    row.className = 'course-row';
+                    row.id = 'course-' + (c.id || '').replace(/\s+/g, '-');
+                    
+                    var credits = c.min_credits || c.credits || '?';
+                    var courseIdTrim = (c.id || '').trim();
+                    
+                    var isPastCompleted = pastCompletedMap.has(courseIdTrim);
+                    var isSpringEnrolled = springEnrolledIdsSet.has(courseIdTrim);
+                    
+                    var deptPrefix = (c.department_prefix || (c.id || '').split(' ')[0]).trim();
+                    var isAllowed = allowedDeptsSet.size === 0 || allowedDeptsSet.has(deptPrefix);
+
+                    var badgeHtml = '';
+                    var buttonHtml = '';
+
+                    if (isPastCompleted) {
+                        var pastInfo = pastCompletedMap.get(courseIdTrim);
+                        var semText = pastInfo && pastInfo.semester ? pastInfo.semester : 'Past Term';
+                        badgeHtml = '<span class="badge-completed">✓ Completed (' + escapeHtml(semText) + ')</span>';
+                        buttonHtml = '<button class="btn-completed" data-id="' + escapeHtml(c.id) + '" title="Past completed course — cannot be dropped">✓ Completed</button>';
+                    } else if (isSpringEnrolled) {
+                        badgeHtml = '<span class="badge-enrolled">✓ Enrolled (Spring 2026)</span>';
+                        buttonHtml = '<button class="btn-drop" data-id="' + escapeHtml(c.id) + '">Drop</button>';
+                    } else if (isAllowed) {
+                        buttonHtml = '<button class="btn-enroll" data-id="' + escapeHtml(c.id) + '">+ Enroll</button>';
+                    } else {
+                        badgeHtml = '<span class="badge-restricted">🔒 Major Restricted</span>';
+                        buttonHtml = '<button class="btn-restricted" data-id="' + escapeHtml(c.id) + '" title="Restricted to major discipline">🔒 Locked</button>';
+                    }
+
+                    row.innerHTML = '<div class="course-header-row">' +
+                                    '<div class="course-info-col">' +
+                                    '<div class="course-meta">' +
+                                    '<span class="course-code">' + escapeHtml(c.id) + '</span>' +
+                                    '<span class="course-credits">' + escapeHtml(String(credits)) + ' cr</span>' +
+                                    badgeHtml +
+                                    '</div>' +
+                                    '<div class="course-title">' + escapeHtml(c.title) + '</div>' +
+                                    '<div class="course-desc">' + escapeHtml(c.description || '') + '</div>' +
+                                    '</div>' +
+                                    '<div class="course-action-col">' +
+                                    buttonHtml +
+                                    '</div>' +
+                                    '</div>';
+
+                    var actionBtn = row.querySelector('.btn-enroll, .btn-drop, .btn-completed, .btn-restricted');
+                    if (actionBtn) {
+                        actionBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            if (isPastCompleted) {
+                                var pastInfo = pastCompletedMap.get(courseIdTrim);
+                                alert('Cannot drop ' + c.id + ': Courses completed in ' + (pastInfo.semester || 'past semesters') + ' are part of your permanent academic record and cannot be dropped.');
+                            } else if (isSpringEnrolled) {
+                                dropCourse(c.id, actionBtn);
+                            } else if (isAllowed) {
+                                enrollCourse(c.id, actionBtn);
+                            } else {
+                                alert('Permission Denied: ' + c.id + ' (' + deptPrefix + ') is restricted for ' + (studentMajor || 'your major') + ' students. You only have enrollment permissions for your major discipline departments.');
+                            }
+                        });
+                    }
+                    
+                    container.appendChild(row);
+                });
+            }
+
+            function populateCourseJump(courses) {
+                var select = document.getElementById('courseJumpSelect');
+                select.innerHTML = '<option value="">Jump to course...</option>';
+                courses.forEach(function(c) {
+                    var opt = document.createElement('option');
+                    opt.value = c.id || '';
+                    opt.textContent = (c.id || '') + ' - ' + (c.title || '');
+                    select.appendChild(opt);
+                });
+            }
+
+            document.getElementById('courseJumpSelect').addEventListener('change', function(e) {
+                var val = e.target.value;
+                if(val) {
+                    var targetId = 'course-' + val.replace(/\s+/g, '-');
+                    var el = document.getElementById(targetId);
+                    if(el) {
+                        el.scrollIntoView({behavior: 'smooth', block: 'center'});
+                        el.style.backgroundColor = '#f0ebe0';
+                        setTimeout(function(){ el.style.backgroundColor = ''; }, 2000);
+                    }
+                }
+            });
+
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                var q = e.target.value.toLowerCase();
+                var filtered = allCoursesData.filter(function(c) {
+                    return (c.id || '').toLowerCase().indexOf(q) !== -1 || (c.title || '').toLowerCase().indexOf(q) !== -1;
+                });
+                renderCourseList(filtered);
+            });
+
+            /* ═══════════════════════════════════════════════════════
+               CHAT LOGIC — completely rewritten for reliability
+               ═══════════════════════════════════════════════════════ */
+            var chatInput = document.getElementById('chatInput');
+            var sendBtn = document.getElementById('sendBtn');
+            var chatMessages = document.getElementById('chatMessages');
+            var suggestionChips = document.getElementById('suggestionChips');
+            var isSending = false;
+
+            function appendMessage(text, role, recommendations) {
+                console.log('[chat] appendMessage called, role:', role, 'text length:', (text||'').length, 'recs:', (recommendations||[]).length);
+
+                // Hide suggestion chips on first message
+                if (suggestionChips) {
+                    suggestionChips.style.display = 'none';
+                }
+
+                var msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-msg ' + role;
+                
+                if (text) {
+                    var textDiv = document.createElement('div');
+                    textDiv.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+                    msgDiv.appendChild(textDiv);
+                }
+
+                if (recommendations && Array.isArray(recommendations) && recommendations.length > 0) {
+                    recommendations.forEach(function(rec) {
+                        try {
+                            var card = document.createElement('div');
+                            card.className = 'rec-card';
+                            
+                            var tagsHtml = '';
+                            if (rec.tags) {
+                                var tagsArray = Array.isArray(rec.tags) ? rec.tags : [String(rec.tags)];
+                                tagsArray.forEach(function(t) {
+                                    tagsHtml += '<span class="tag">' + escapeHtml(String(t)) + '</span>';
+                                });
+                            }
+
+                            card.innerHTML = '<div class="rec-header">' +
+                                             '<span class="rec-code">' + escapeHtml(String(rec.course_code || '')) + '</span>' +
+                                             '<span class="course-credits">' + escapeHtml(String(rec.credits || '')) + ' cr</span>' +
+                                             '</div>' +
+                                             '<div class="rec-title">' + escapeHtml(String(rec.title || '')) + '</div>' +
+                                             (rec.avg_grade ? '<div class="rec-grade">Avg Grade: ' + escapeHtml(String(rec.avg_grade)) + '</div>' : '') +
+                                             '<div class="rec-fit">' +
+                                             '<div class="fit-label"><span>Fit Score</span><span>' + escapeHtml(String(rec.fit || 0)) + '%</span></div>' +
+                                             '<div class="fit-bar-bg"><div class="fit-bar-fill" style="width:' + parseInt(rec.fit || 0) + '%"></div></div>' +
+                                             '</div>' +
+                                             '<div class="rec-desc">' + escapeHtml(String(rec.explanation || '')) + '</div>' +
+                                             (rec.benefits ? '<div class="rec-benefits"><strong>Benefits:</strong> ' + escapeHtml(String(rec.benefits)) + '</div>' : '') +
+                                             '<div class="rec-tags">' + tagsHtml + '</div>';
+                            
+                            msgDiv.appendChild(card);
+                        } catch (err) {
+                            console.error('[chat] Error rendering recommendation card:', err);
+                        }
+                    });
+                }
+                
+                chatMessages.appendChild(msgDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            function sendMessage(text) {
+                if (!text || !text.trim() || isSending) return;
+                isSending = true;
+                
+                console.log('[chat] Sending message:', text.substring(0, 50));
+                
+                // Show user message
+                appendMessage(text, 'user');
+                chatInput.value = '';
+                
+                // Show thinking indicator
+                var shimmer = document.createElement('div');
+                shimmer.className = 'chat-msg assistant';
+                shimmer.id = 'chatShimmer';
+                shimmer.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><span class="thinking-dot">●</span> Thinking...</div>';
+                chatMessages.appendChild(shimmer);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        student_id: studentId,
+                        session_id: sessionId
+                    })
+                })
+                .then(function(res) { 
+                    console.log('[chat] Response status:', res.status);
+                    if (!res.ok) {
+                        return res.text().then(function(t) { throw new Error('Server error ' + res.status + ': ' + t); });
+                    }
+                    return res.json(); 
+                })
+                .then(function(data) {
+                    console.log('[chat] Response data keys:', Object.keys(data));
+                    
+                    // Remove shimmer
+                    var s = document.getElementById('chatShimmer');
+                    if (s) s.remove();
+                    
+                    var rec = data.recommendation || data || {};
+                    var msgText = rec.agent_answer || rec.error || 'Here are your recommendations.';
+                    var recs = rec.recommendations || [];
+                    
+                    console.log('[chat] Agent answer length:', msgText.length, 'Recommendations:', recs.length);
+                    appendMessage(msgText, 'assistant', recs);
+                    
+                    if (data.s3_path) {
+                        var footer = document.createElement('div');
+                        footer.style.cssText = 'font-size:0.75rem;color:var(--muted-color);padding:4px 16px;';
+                        footer.textContent = '📋 Report saved';
+                        chatMessages.appendChild(footer);
+                    }
+                    
+                    isSending = false;
+                })
+                .catch(function(e) {
+                    console.error('[chat] Error:', e);
+                    var s = document.getElementById('chatShimmer');
+                    if (s) s.remove();
+                    appendMessage('Sorry, an error occurred: ' + e.message, 'assistant');
+                    isSending = false;
+                });
+            }
+
+            // Send button click
+            sendBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendMessage(chatInput.value);
+            });
+
+            // Enter key
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sendMessage(chatInput.value);
+                }
+            });
+
+            // Suggestion chips
+            var chips = document.querySelectorAll('.suggestion-chip');
+            console.log('[advisor] Found', chips.length, 'suggestion chips');
+            chips.forEach(function(chip) {
+                chip.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var chipText = (this.textContent || this.innerText || '').trim();
+                    console.log('[chat] Chip clicked:', chipText);
+                    sendMessage(chipText);
+                });
+            });
+
+            // Chat header click focuses input
+            document.querySelector('.chat-header').addEventListener('click', function() {
+                chatInput.focus();
+            });
+
+            /* Mobile Chat Toggle */
+            var chatPanel = document.getElementById('chatPanel');
+            document.getElementById('mobileChatBtn').addEventListener('click', function() {
+                chatPanel.classList.add('mobile-active');
+            });
+            document.getElementById('closeChatBtn').addEventListener('click', function() {
+                chatPanel.classList.remove('mobile-active');
+            });
+
+            // Initial load
+            console.log('[advisor] Starting initial data load...');
+            loadDepartments();
+            loadCourses('');
+        });
+    </script>
+</body>
+</html>
