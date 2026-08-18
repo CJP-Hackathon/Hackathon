@@ -119,7 +119,7 @@ See [`ARCHITECTURE-3.pdf`](./ARCHITECTURE-3.pdf) for the full system architectur
 
 ## CockroachDB Integration
 
-📄 **[View CockroachDB Agentic Memory Evidence (Screenshots)](./CockroachDB_Agentic_Memory_Evidence.docx)**
+📄 **[View CockroachDB Agentic Memory Evidence (Screenshots)](./CockroachDB_Agentic_Memory.pdf)**
 
 CockroachDB Cloud Serverless is the **primary persistence engine** for this application, implementing **5 distinct memory types** as described in `ARCHITECTURE-3.pdf`:
 
