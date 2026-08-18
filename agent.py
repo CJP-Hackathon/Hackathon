@@ -32,7 +32,7 @@ RULES:
 - Review the pre-fetched courses and recommend up to 3 of the most relevant courses that best align with the student's goal.
 - If you recommend a course that is NOT in the student's 'Allowed department prefixes', you MUST clearly warn them in the 'agent_answer' that it falls outside their major.
 - "fit" must be an integer 0-100 reflecting how well the course matches their goal.
-- "avg_grade" must be a realistic letter grade (A, A-, B+, B, B-, C+, C)
+- "avg_grade" must be an intelligent estimate of the typical average grade (A, A-, B+, B, B-, C+, C). Guess this based on the course's level (e.g., 100-level intro courses might be A- or B+, while 400-level advanced engineering/science courses might be B- or C+).
 - "credits" must be an integer
 - Each recommendation must have 2-4 short tags
 - Do NOT recommend courses the student has already completed
@@ -271,7 +271,7 @@ def run_agent_mistral(goal, student_id, completed_courses="", allowed_depts=None
                 "title": c.get("title", ""),
                 "credits": c.get("min_credits", 3),
                 "fit": max(95 - i * 8, 70),
-                "avg_grade": ["B+", "B", "B-"][i] if i < 3 else "B",
+                "avg_grade": "A-" if " 1" in str(c.get("id", "")) else "B-" if " 4" in str(c.get("id", "")) else "B+",
                 "explanation": c.get("description", "Matches your academic interest.")[:200],
                 "benefits": "Builds skills relevant to your stated goal.",
                 "tags": ["discipline match", c.get("department_prefix", "")]
