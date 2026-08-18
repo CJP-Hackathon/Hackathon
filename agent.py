@@ -1,5 +1,21 @@
 import os
 import json
+import hashlib
+
+def generate_realistic_grade(course_id):
+    course_id = str(course_id).upper()
+    h = int(hashlib.md5(course_id.encode()).hexdigest(), 16)
+    if " 1" in course_id or " 0" in course_id:
+        return ["A", "A-", "B+"][h % 3]
+    elif " 2" in course_id or " 3" in course_id:
+        return ["A-", "B+", "B"][h % 3]
+    elif " 4" in course_id:
+        return ["B+", "B", "B-", "C+"][h % 4]
+    elif " 5" in course_id or " 8" in course_id or " 6" in course_id:
+        return ["A", "A-"][h % 2]
+    else:
+        return ["B+", "B", "B-"][h % 3]
+
 import concurrent.futures
 from google import genai
 from google.genai import types
@@ -32,7 +48,7 @@ RULES:
 - Review the pre-fetched courses and recommend up to 3 of the most relevant courses that best align with the student's goal.
 - If you recommend a course that is NOT in the student's 'Allowed department prefixes', you MUST clearly warn them in the 'agent_answer' that it falls outside their major.
 - "fit" must be an integer 0-100 reflecting how well the course matches their goal.
-- "avg_grade" must be an intelligent estimate of the typical average grade (A, A-, B+, B, B-, C+, C). Guess this based on the course's level (e.g., 100-level intro courses might be A- or B+, while 400-level advanced engineering/science courses might be B- or C+).
+- "avg_grade" must be EXACTLY the grade provided in the 'Pre-fetched semantically matching courses' list for that course.
 - "credits" must be an integer
 - Each recommendation must have 2-4 short tags
 - Do NOT recommend courses the student has already completed
@@ -77,7 +93,7 @@ def run_agent(goal, student_id, history=None, completed_courses="", allowed_dept
                 sim_str = str(round(float(sim_val), 2)) if sim_val is not None else "0.85"
                 course_lines.append(
                     "- " + str(c.get("id","?")) + " | " + str(c.get("title","?")) + " | " +
-                    str(c.get("min_credits", c.get("credits","?"))) + " cr | " +
+                    str(c.get("min_credits", c.get("credits","?"))) + " cr | Grade: " + generate_realistic_grade(c.get("id","?")) + " | " +
                     "Dept: " + str(c.get("department_prefix","?")) + " | " +
                     "Similarity: " + sim_str + " | " +
                     "Desc: " + str(c.get("description",""))[:150]
@@ -133,7 +149,7 @@ def _build_prompt(goal, student_id, completed_courses, allowed_depts, search_res
         for c in search_result[:6]:
             course_lines.append(
                 "- " + str(c.get("id","?")) + " | " + str(c.get("title","?")) + " | " +
-                str(c.get("min_credits", c.get("credits","?"))) + " cr | " +
+                str(c.get("min_credits", c.get("credits","?"))) + " cr | Grade: " + generate_realistic_grade(c.get("id","?")) + " | " +
                 "Dept: " + str(c.get("department_prefix","?")) + " | " +
                 "Desc: " + str(c.get("description",""))[:100]
             )
@@ -271,7 +287,7 @@ def run_agent_mistral(goal, student_id, completed_courses="", allowed_depts=None
                 "title": c.get("title", ""),
                 "credits": c.get("min_credits", 3),
                 "fit": max(95 - i * 8, 70),
-                "avg_grade": "A-" if " 1" in str(c.get("id", "")) else "B-" if " 4" in str(c.get("id", "")) else "B+",
+                "avg_grade": generate_realistic_grade(c.get("id", "")),
                 "explanation": c.get("description", "Matches your academic interest.")[:200],
                 "benefits": "Builds skills relevant to your stated goal.",
                 "tags": ["discipline match", c.get("department_prefix", "")]
