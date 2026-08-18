@@ -58,7 +58,7 @@ See [`ARCHITECTURE-3.pdf`](./ARCHITECTURE-3.pdf) for the full system architectur
 └───────────────────────────┬─────────────────────────────────┘
                             │ HTTPS
 ┌───────────────────────────▼─────────────────────────────────┐
-│              FLASK APPLICATION SERVER (app.py)              │
+│              FLASK APP SERVER (Hosted on AWS EC2)           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐   │
 │  │ /api/chat│  │/api/enroll│  │/api/drop │  │/api/student│  │
 │  └────┬─────┘  └────┬──────┘  └────┬─────┘  └─────┬─────┘  │
@@ -113,6 +113,7 @@ See [`ARCHITECTURE-3.pdf`](./ARCHITECTURE-3.pdf) for the full system architectur
 | **LLM — Fallback 2** | Mistral Cloud API (`mistral-small-latest`) |
 | **Frontend** | Vanilla HTML/CSS/JavaScript, responsive 3-column academic layout |
 | **Architecture** | Single-shot agent with pre-fetched tool results (vs multi-turn agentic loop) |
+| **Deployment** | Hosted on AWS EC2 |
 
 ---
 
